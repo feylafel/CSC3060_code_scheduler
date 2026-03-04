@@ -1,0 +1,184 @@
+# Based on LLVM style with modern C++ customizations
+
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+IndentWrappedFunctionNames: false
+NamespaceIndentation: None
+IndentExternBlock: NoIndent
+IndentGotoLabels: false
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignArrayOfStructures: Right
+AlignConsecutiveAssignments: None
+AlignConsecutiveBitFields: Consecutive
+AlignConsecutiveDeclarations: None
+AlignConsecutiveMacros: Consecutive
+AlignEscapedNewlines: Left
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Line Breaking
+ColumnLimit: 100
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: Inline
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBinaryOperators: None
+BreakBeforeBraces: Attach
+BreakBeforeConceptDeclarations: Always
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList: BeforeColon
+BreakStringLiterals: true
+
+# Braces
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+
+# Spaces
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: true
+SpaceAroundPointerQualifiers: Default
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCaseColon: false
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceBeforeSquareBrackets: false
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 2
+SpacesInAngles: Never
+SpacesInCStyleCastParentheses: false
+SpacesInConditionalStatement: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Pointer and Reference Alignment
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Includes
+IncludeBlocks: Regroup
+IncludeCategories:
+  # C++ standard library headers
+  - Regex: '^<[a-z_]+>$'
+    Priority: 2
+  # System headers with .h extension
+  - Regex: '^<.*\.h>$'
+    Priority: 3
+  # Third-party headers
+  - Regex: '^<.*>'
+    Priority: 4
+  # Project headers
+  - Regex: '^".*"$'
+    Priority: 1
+SortIncludes: CaseSensitive
+SortUsingDeclarations: true
+
+# Comments
+FixNamespaceComments: true
+ReflowComments: true
+
+# Empty Lines
+EmptyLineAfterAccessModifier: Never
+EmptyLineBeforeAccessModifier: LogicalBlock
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+SeparateDefinitionBlocks: Leave
+
+# Constructor Initializers
+ConstructorInitializerIndentWidth: 4
+PackConstructorInitializers: CurrentLine
+
+# Lambdas
+LambdaBodyIndentation: Signature
+
+# Penalties (for line-breaking decisions)
+PenaltyBreakAssignment: 25
+PenaltyBreakBeforeFirstCallParameter: 50
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakOpenParenthesis: 0
+PenaltyBreakString: 1000
+PenaltyBreakTemplateDeclaration: 10
+PenaltyExcessCharacter: 1000000
+PenaltyIndentedWhitespace: 0
+PenaltyReturnTypeOnItsOwnLine: 200
+
+# Modern C++ Features
+Cpp11BracedListStyle: true
+Standard: Latest
+
+# Binary Packing
+BinPackArguments: false
+BinPackParameters: false
+
+# Attributes
+AttributeMacros: []
+
+# Macros
+MacroBlockBegin: ''
+MacroBlockEnd: ''
+StatementMacros:
+  - Q_UNUSED
+  - QT_REQUIRE_VERSION
+
+# Qualifiers (const placement)
+QualifierAlignment: Leave
+
+# Short Namespace
+ShortNamespaceLines: 0
+
+# Require/Concept
+RequiresClausePosition: OwnLine
+IndentRequiresClause: true
+
+# Access Modifiers
+AccessModifierOffset: -4
+
+# Insert Trailing Commas
+InsertTrailingCommas: None
+
+# Miscellaneous
+CompactNamespaces: false
+DisableFormat: false
+InsertBraces: false
+RemoveBracesLLVM: false
