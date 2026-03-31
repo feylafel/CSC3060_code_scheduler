@@ -18,7 +18,8 @@ bool Instruction::hasDestReg() const {
 bool Instruction::usesReg(const std::string& reg) const {
     // Check if reg is in source register list
     // TODO: Implement this function
-    throw std::runtime_error("usesReg not implemented");
+    // throw std::runtime_error("usesReg not implemented");
+    return std::find(src_regs.begin(), src_regs.end(), reg) != src_regs.end();
 }
 
 bool Instruction::definesReg(const std::string& reg) const {
@@ -26,7 +27,8 @@ bool Instruction::definesReg(const std::string& reg) const {
     // Here "define" simply means "write to" the register
     // For example, "add x1, x2, x3" defines x1
     // TODO: Implement this function
-    throw std::runtime_error("definesReg not implemented");
+    // throw std::runtime_error("definesReg not implemented");
+    return !dest_reg.empty() && dest_reg == reg;  // hasDestReg() = !dest_reg.empty()
 }
 
 void Instruction::print(std::ostream& os) const {
@@ -89,6 +91,7 @@ int getInstructionLatency(const std::string& opcode) {
         {"mulhsu",  3},
         { "mulhu",  3},
         {  "mulw",  3},
+        {   "mul",  3}, // added
 
         // Division instructions - 10 cycles (division is typically slow)
         {   "div", 10},
@@ -98,6 +101,7 @@ int getInstructionLatency(const std::string& opcode) {
         {  "remu", 10},
         {  "remw", 10},
         { "remuw", 10},
+        {   "rem", 10}, // added
 
         // Load instructions - 5 cycles (assuming cache hit)
         {    "lb",  5},
@@ -106,11 +110,13 @@ int getInstructionLatency(const std::string& opcode) {
         {   "lhu",  5},
         {   "lwu",  5},
         {    "ld",  5},
+        {    "lw",  5}, // added
 
         // Store instructions - 1 cycle (assuming write buffer available)
         {    "sb",  1},
         {    "sh",  1},
         {    "sd",  1},
+        {    "sw",  1}, // added
 
         // Branch and jump - 1 cycle
         {   "beq",  1},

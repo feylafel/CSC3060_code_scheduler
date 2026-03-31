@@ -97,8 +97,48 @@ void runScheduler(const std::string& name, const std::vector<std::string>& code)
     // TODO: Put All things together
     std::cout << "\n";
     std::cout << name << "\n";
+    // std::cout << "TODO: runScheduler not implemented\n";
+    // I've added  “Quick analysis” section after each example run for myself
+    std::cout << "============================================================\n"; // just for readability
 
-    std::cout << "TODO: runScheduler not implemented\n";
+    Parser parser;
+    DAGBuilder builder;
+    Scheduler scheduler;
+
+    // parse assembly text into Instruction objects.
+    auto instructions = parser.parse(code);
+
+    // build dependency DAG.
+    auto nodes = builder.build(instructions);
+
+    // run list scheduling.
+    auto scheduled_result = scheduler.schedule(instructions, nodes);
+
+    // print scheduled order.
+    scheduler.printSchedule(scheduled_result, instructions, nodes);
+
+    // print comparison between original order and scheduled order.
+    scheduler.printComparison(instructions, nodes, scheduled_result);
+
+    // brief analysis
+    std::vector<int> original_order;
+    original_order.reserve(instructions.size());
+    for (size_t i = 0; i < instructions.size(); i++) {
+        original_order.push_back(static_cast<int>(i));
+    }
+
+    auto original_sim = scheduler.simulateExecution(original_order, instructions, nodes);
+    const int saved = original_sim.total_cycles - scheduled_result.total_cycles;
+
+    // my own quick analysis
+    std::cout << "quick analysis:\n";
+        if (saved > 0) {
+            std::cout << "  Improvement comes from overlapping independent work with long-latency dependent operations.\n";
+        } else if (saved == 0) {
+            std::cout << "  No improvement because dependencies already limit reordering opportunities.\n";
+        } else {
+            std::cout << "  Reordering did not help because the original order was already close to the critical path.\n";
+        }
 }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {

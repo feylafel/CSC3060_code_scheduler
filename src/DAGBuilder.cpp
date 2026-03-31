@@ -3,6 +3,8 @@
 #include <iomanip>
 #include <iostream>
 #include <set>
+#include <unordered_map>
+#include <unordered_set>
 
 std::vector<DAGNode> DAGBuilder::build(const std::vector<Instruction>& instructions) {
     std::vector<DAGNode> nodes;
@@ -12,9 +14,53 @@ std::vector<DAGNode> DAGBuilder::build(const std::vector<Instruction>& instructi
         nodes.emplace_back(static_cast<int>(i));
     }
 
-    detectRAW(instructions, nodes);
-    detectWAR(instructions, nodes);
-    detectWAW(instructions, nodes);
+    // // the old multi-pass implementation
+    // detectRAW(instructions, nodes);
+    // detectWAR(instructions, nodes);
+    // detectWAW(instructions, nodes);
+
+    // ONEPASS DETECTION, the bonus part
+    std::unordered_map<std::string, int> lastWriter;
+    std::unordered_map<std::string, std::unordered_set<int>> readersSinceLastWrite;
+
+    for (size_t i = 0; i < instructions.size(); i++) {
+        const Instruction& inst = instructions[i];
+        const int currentIdx = static_cast<int>(i);
+
+        // RAW: current source depends on the last writer of the register we read from
+        for (const auto& srcReg : inst.src_regs) {
+            auto it = lastWriter.find(srcReg);
+            if (it != lastWriter.end()) {
+                addEdge(nodes, it->second, currentIdx, DependencyType::RAW, srcReg);
+            }
+        }
+
+        if (inst.hasDestReg()) {
+            const std::string& dest = inst.dest_reg;
+
+            // WAW: current write depends on previous write in ordering
+            auto writerIt = lastWriter.find(dest);
+            if (writerIt != lastWriter.end()) {
+                addEdge(nodes, writerIt->second, currentIdx, DependencyType::WAW, dest);
+            }
+
+            // WAR: current write depends on all readers since the last write
+            auto readersIt = readersSinceLastWrite.find(dest);
+            if (readersIt != readersSinceLastWrite.end()) {
+                for (int readerIdx : readersIt->second) {
+                    addEdge(nodes, readerIdx, currentIdx, DependencyType::WAR, dest);
+                }
+                readersIt->second.clear();
+            }
+
+            lastWriter[dest] = currentIdx;
+        }
+
+        // record what reg this instruction reads
+        for (const auto& srcReg : inst.src_regs) {
+            readersSinceLastWrite[srcReg].insert(currentIdx);
+        }
+    }
 
     for (auto& node : nodes) {
         node.unscheduled_predecessors = static_cast<int>(node.predecessors.size());
@@ -34,13 +80,13 @@ void DAGBuilder::detectRAW(const std::vector<Instruction>& instructions,
         for (const auto& srcReg : inst.src_regs) {
             auto it = lastWriter.find(srcReg);
             if (it != lastWriter.end()) {
-                // Found RAW dependency
+                // found RAW dependency
                 int writerIdx = it->second;
                 addEdge(nodes, writerIdx, static_cast<int>(i), DependencyType::RAW, srcReg);
             }
         }
 
-        // Update last writer
+        // update last writer
         if (inst.hasDestReg()) {
             lastWriter[inst.dest_reg] = static_cast<int>(i);
         }
@@ -55,7 +101,31 @@ void DAGBuilder::detectWAR(const std::vector<Instruction>& instructions,
     // Iterate each instruction, If current instruction writes a register, check previous readers
     // Add WAR dependency to all previous readers
     // WAR latency is 0 because read happens at instruction start
-    throw std::runtime_error("WAR dependency detection not implemented");
+    // throw std::runtime_error("WAR dependency detection not implemented");
+
+    // Track readers observed since the last write for each register.
+    std::map<std::string, std::set<int>> readersSinceLastWrite;
+
+    for (size_t i = 0; i < instructions.size(); i++) {
+        const Instruction& inst = instructions[i];
+        const int currentIdx = static_cast<int>(i);
+
+        if (inst.hasDestReg()) {
+            const std::string& dest = inst.dest_reg;
+
+            auto it = readersSinceLastWrite.find(dest);
+            if (it != readersSinceLastWrite.end()) {
+                for (int readerIdx : it->second) {
+                    addEdge(nodes, readerIdx, currentIdx, DependencyType::WAR, dest);
+                }
+                it->second.clear();
+            }
+        }
+
+        for (const auto& srcReg : inst.src_regs) {
+            readersSinceLastWrite[srcReg].insert(currentIdx);
+        }
+    }
 }
 
 void DAGBuilder::detectWAW(const std::vector<Instruction>& instructions,
@@ -64,7 +134,23 @@ void DAGBuilder::detectWAW(const std::vector<Instruction>& instructions,
     // Hint:
     // Track the last instruction that wrote to each register
     // WAW latency is 1, only need to guarantee order
-    throw std::runtime_error("WAW dependency detection not implemented");
+    // throw std::runtime_error("WAW dependency detection not implemented");
+
+    std::map<std::string, int> lastWriter;
+
+    for (size_t i = 0; i < instructions.size(); i++) {
+        const Instruction& inst = instructions[i];
+        if (!inst.hasDestReg()) {
+            continue;
+        }
+
+        auto it = lastWriter.find(inst.dest_reg);
+        if (it != lastWriter.end()) {
+            addEdge(nodes, it->second, static_cast<int>(i), DependencyType::WAW, inst.dest_reg);
+        }
+
+        lastWriter[inst.dest_reg] = static_cast<int>(i);
+    }
 }
 
 void DAGBuilder::addEdge(

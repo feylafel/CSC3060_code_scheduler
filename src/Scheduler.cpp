@@ -11,7 +11,70 @@ ScheduleResult Scheduler::schedule(const std::vector<Instruction>& instructions,
                                    TieBreakingPolicy policy) {
     // TODO: Implement this function using provided API
     ScheduleResult result;
-    throw std::runtime_error("schedule not implemented");
+    // throw std::runtime_error("schedule not implemented");
+    if (instructions.empty() || nodes.empty()) {
+        return result;
+    }
+
+    // init the node state
+    for (size_t i = 0; i < nodes.size(); i++) {
+        DAGNode& n = nodes[i];
+        n.scheduled = false;
+        n.schedule_cycle = -1;
+        n.unscheduled_predecessors = static_cast<int>(n.predecessors.size());
+    }
+
+    // compute priorities
+    computePriorities(instructions, nodes);
+
+    using FinishEvent = std::pair<int, int>;
+    std::priority_queue<FinishEvent, std::vector<FinishEvent>, std::greater<FinishEvent>> finishing;
+
+    std::vector<int> issue_time(instructions.size(), -1);
+    int t = 0;
+
+    // scheduling loop
+    while (result.order.size() < instructions.size()) {
+        while (!finishing.empty() && finishing.top().first <= t) {  // retire finishe instruction
+            const int u = finishing.top().second;
+            finishing.pop();
+            for (const auto& edge : nodes[u].successors) {
+                if (edge.type == DependencyType::RAW) {
+                    nodes[edge.target_node].unscheduled_predecessors--;
+                }
+            }
+        }
+
+        std::vector<int> ready = getReadyNodes(nodes);
+
+        if (!ready.empty()) {  // if have ready instructions
+            const int k = selectBestNode(ready, nodes, instructions, policy);
+            issue_time[k] = t;
+            nodes[k].scheduled = true;
+            nodes[k].schedule_cycle = static_cast<int>(result.order.size());
+            result.order.push_back(k);
+
+            for (const auto& edge : nodes[k].successors) {
+                if (edge.type != DependencyType::RAW) {
+                    nodes[edge.target_node].unscheduled_predecessors--;
+                }
+            }
+            finishing.push({t + instructions[k].latency, k});
+            t++;
+        } else {  // if no ready instryctions
+            if (finishing.empty()) {
+                break;
+            }
+            t = finishing.top().first;
+        }
+    }
+
+    // compute the total cycles here
+    int total = 0;
+    for (size_t i = 0; i < instructions.size(); i++) {
+        total = std::max(total, issue_time[static_cast<int>(i)] + instructions[i].latency);
+    }
+    result.total_cycles = total;
     return result;
 }
 
@@ -19,14 +82,124 @@ ScheduleResult Scheduler::scheduleFast(const std::vector<Instruction>& instructi
                                        std::vector<DAGNode>& nodes,
                                        TieBreakingPolicy policy,
                                        bool verbose) {
+    (void)verbose;  // not used
     ScheduleResult result;
-    // TODO: BONUS: Optimize code as fast as you can
-    throw std::runtime_error("scheduleFast not implemented");
+    if (instructions.empty() || nodes.empty()) {
+        return result;
+    }
+
+    // reset node state for a fresh schedule run
+    for (size_t i = 0; i < nodes.size(); i++) {
+        nodes[i].scheduled = false;
+        nodes[i].schedule_cycle = -1;
+        nodes[i].unscheduled_predecessors = static_cast<int>(nodes[i].predecessors.size());
+    }
+
+    computePriorities(instructions, nodes);
+
+    // ready set use heap (no scanning all nodes each time)
+    // Use selectBestNode() for all tie-breaking logic.
+    auto readyCmp = [&](int a, int b) -> bool {
+        // For a std::priority_queue with this comparator, "top" should be the
+        // element that wins if we only compare (a,b).
+        const std::vector<int> candidates = {a, b};
+        const int best = selectBestNode(candidates, nodes, instructions, policy);
+
+        // Return true if a should come after b in the heap (i.e., b is better).
+        return best == b;
+    };
+    std::priority_queue<int, std::vector<int>, decltype(readyCmp)> ready(readyCmp);
+
+    // inflight completion min-heap for RAW release: (finish_time, node_idx)
+    using FinishEvent = std::pair<int, int>;
+    std::priority_queue<FinishEvent, std::vector<FinishEvent>, std::greater<FinishEvent>> finishing;
+
+    // when to issue each instruction
+    std::vector<int> issue_time(instructions.size(), -1);
+
+    // init the ready heap with nodes that have no predecessors
+    for (size_t i = 0; i < nodes.size(); i++) {
+        if (nodes[i].unscheduled_predecessors == 0) {
+            ready.push(static_cast<int>(i));
+        }
+    }
+
+    int t = 0;
+    while (result.order.size() < instructions.size()) {
+        // release RAW successors whose predecessors have finished by time t
+        while (!finishing.empty() && finishing.top().first <= t) {
+            const int u = finishing.top().second;
+            finishing.pop();
+
+            for (const auto& edge : nodes[u].successors) {
+                if (edge.type != DependencyType::RAW) {
+                    continue;
+                }
+
+                const int v = edge.target_node;
+                nodes[v].unscheduled_predecessors--;
+                if (nodes[v].unscheduled_predecessors == 0 && !nodes[v].scheduled) {
+                    ready.push(v);
+                }
+            }
+        }
+
+        if (!ready.empty()) {
+            const int k = ready.top();
+            ready.pop();
+
+            // below is just double-check before issuing
+            if (nodes[k].scheduled || nodes[k].unscheduled_predecessors != 0) {
+                continue;
+            }
+
+            issue_time[k] = t;
+            nodes[k].scheduled = true;
+            nodes[k].schedule_cycle = static_cast<int>(result.order.size());
+            result.order.push_back(k);
+
+            // release WAR/WAW successors immediately at issue
+            for (const auto& edge : nodes[k].successors) {
+                if (edge.type == DependencyType::RAW) {
+                    continue;
+                }
+
+                const int v = edge.target_node;
+                nodes[v].unscheduled_predecessors--;
+                if (nodes[v].unscheduled_predecessors == 0 && !nodes[v].scheduled) {
+                    ready.push(v);
+                }
+            }
+
+            // raW successors can only be released when this node finishes
+            finishing.push({t + instructions[k].latency, k});
+            t++;
+            continue;
+        }
+
+        // no ready nodes: jump to the next finishing event (RAW release time)
+        if (finishing.empty()) {
+            break;
+        }
+        t = finishing.top().first;
+    }
+
+    // compute total cycles
+    int total = 0;
+    for (size_t i = 0; i < instructions.size(); i++) {
+        if (issue_time[i] >= 0) {
+            total = std::max(total, issue_time[i] + instructions[i].latency);
+        }
+    }
+    result.total_cycles = total;
     return result;
 }
 
 void Scheduler::computePriorities(const std::vector<Instruction>& instructions,
                                   std::vector<DAGNode>& nodes) {
+    // TODO: Implement this function
+    // throw std::runtime_error("computeCriticalPath not implemented");
+    // return 0;
     std::vector<bool> visited(nodes.size(), false);
 
     // Calculate priority for each node
@@ -41,9 +214,23 @@ int Scheduler::computeCriticalPath(int nodeIdx,
                                    const std::vector<Instruction>& instructions,
                                    std::vector<DAGNode>& nodes,
                                    std::vector<bool>& visited) {
-    // TODO: Implement this function
-    throw std::runtime_error("computeCriticalPath not implemented");
-    return 0;
+    if (visited[static_cast<size_t>(nodeIdx)]) {
+        return nodes[static_cast<size_t>(nodeIdx)].priority;
+    }
+    visited[static_cast<size_t>(nodeIdx)] = true;
+
+    const Instruction& inst = instructions[static_cast<size_t>(nodeIdx)];
+    int best = inst.latency;
+
+    for (const auto& edge : nodes[static_cast<size_t>(nodeIdx)].successors) {
+        const int w = (edge.type == DependencyType::RAW) ? inst.latency : 1;
+        const int sub =
+            computeCriticalPath(edge.target_node, instructions, nodes, visited);  // sub is subpath
+        best = std::max(best, w + sub);
+    }
+
+    nodes[static_cast<size_t>(nodeIdx)].priority = best;
+    return best;
 }
 
 std::vector<int> Scheduler::getReadyNodes(const std::vector<DAGNode>& nodes) {
@@ -78,14 +265,40 @@ int Scheduler::selectBestNode(const std::vector<int>& readyNodes,
             bestPriority = currentPriority;
             bestNode = nodeIdx;
         } else if (currentPriority == bestPriority) {
-            // Tie-breaking based on policy
+            // tiebreaking based on policy
             bool shouldReplace = false;
 
             switch (policy) {
                 case TieBreakingPolicy::SMALLER_INDEX:
-                    // Select node with smaller original index
+                    // pick node with smaller original index
                     shouldReplace = (nodeIdx < bestNode);
                     break;
+                case TieBreakingPolicy::MOST_CHILD: {
+                    // prefer node with more successors -> more immediate available work
+                    const size_t bestChildCount = nodes[bestNode].successors.size();
+                    const size_t currentChildCount = nodes[nodeIdx].successors.size();
+
+                    if (currentChildCount > bestChildCount) {
+                        shouldReplace = true;
+                    } else if (currentChildCount == bestChildCount) {
+                        // if still tied, fall back to smaller index.
+                        shouldReplace = (nodeIdx < bestNode);
+                    }
+                    break;
+                }
+                case TieBreakingPolicy::LPT: {
+                    // LPT = longer processing time -> higher latency first.
+                    const int bestLatency = instructions[bestNode].latency;
+                    const int currentLatency = instructions[nodeIdx].latency;
+
+                    if (currentLatency > bestLatency) {
+                        shouldReplace = true;
+                    } else if (currentLatency == bestLatency) {
+                        // if still tied use smaller index.
+                        shouldReplace = (nodeIdx < bestNode);
+                    }
+                    break;
+                }
             }
 
             if (shouldReplace) {

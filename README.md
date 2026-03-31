@@ -1,4 +1,6 @@
 # CSC3060 Spring 2026 Project 3: Code Scheduling
+This project was developed from the original course repository:
+https://github.com/pandaman176/CSC3060-Project3 
 
 For a full description of the project, see the project handout at
 [csc3060_spring2026_project3_cs.pdf](./csc3060_spring2026_project3_cs.pdf)
